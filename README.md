@@ -40,6 +40,6 @@ Commands->Attach_Script(evacPerson1, "GK_Evac_Person", StringClass::getFormatted
 GameObject *evacPerson2 = Commands->Create_Object("GDI_MiniGunner_0", Vector3())
 Commands->Attach_Script(evacPerson2, "GK_Evac_Person", StringClass::getFormattedString("%d", evacMonitorId));
 
-Then all you need to do is send a custom to the evac monitor GK_CUSTOM_EVENT_EVAC_INITIATE_EVAC
+Then all you need to do is send a custom to the evac monitor GK_CUSTOM_EVENT_EVAC_INITIATE_EVAC. The evac will take place at the location of the monitor.
 
 I based this on the logic of the evacuations in M01 and I improved it. The scripts should be singleplayer compatible. (Save/Loading working). You also have the ability to cancel an ongoing evacuation with the custom GK_CUSTOM_EVENT_EVAC_CANCEL_EVAC. 
