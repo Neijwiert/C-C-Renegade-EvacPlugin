@@ -80,6 +80,10 @@ void GK_Evac_Person::Custom(GameObject *obj, int type, int param, GameObject *se
 	{
 		CancelEvac();
 	}
+	else if (type == GK_CUSTOM_EVENT_TROOP_BONE_FINISHED_ANIMATION)
+	{
+		FinalizeEvac();
+	}
 }
 
 void GK_Evac_Person::Action_Complete(GameObject *obj, int action_id, ActionCompleteReason complete_reason)
@@ -103,11 +107,7 @@ void GK_Evac_Person::Animation_Complete(GameObject *obj, const char *animation_n
 {
 	if (!_stricmp(animation_name, GK_EVAC_PERSON_EXIT_ANIM))
 	{
-		this->shouldUnregister = false;
-
-		SendMonitorCustom(GK_CUSTOM_EVENT_EVAC_PERSON_EVACUATED, 0);
-
-		Commands->Destroy_Object(obj);
+		FinalizeEvac();
 	}
 }
 
@@ -156,6 +156,18 @@ void GK_Evac_Person::RestoreState()
 	if (this->previousInnateState)
 	{
 		Commands->Innate_Enable(Owner());
+	}
+}
+
+void GK_Evac_Person::FinalizeEvac()
+{
+	if (!Owner()->Is_Delete_Pending())
+	{
+		this->shouldUnregister = false;
+
+		SendMonitorCustom(GK_CUSTOM_EVENT_EVAC_PERSON_EVACUATED, 0);
+
+		Commands->Destroy_Object(Owner());
 	}
 }
 

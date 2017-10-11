@@ -36,6 +36,7 @@ class GK_Evac_Person : public GK_Evac_Base
 		void GotoEvacLocation();
 		void CancelEvac();
 		void RestoreState();
+		void FinalizeEvac();
 
 		bool shouldUnregister;
 		bool movingToEvacLocation;

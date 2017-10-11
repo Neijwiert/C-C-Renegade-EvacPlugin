@@ -35,7 +35,7 @@ void GK_Evac_Monitor::Save(ScriptSaver &saver)
 	Commands->Save_Data(saver, 6, sizeof(this->ropeObjId), &this->ropeObjId);
 	Commands->Save_Data(saver, 7, sizeof(this->waypathObjId), &this->waypathObjId);
 	Commands->Save_Data(saver, 8, sizeof(this->evacuatedPersonsCount), &this->evacuatedPersonsCount);
-	Commands->Save_Data(saver, 9, sizeof(this->evacuatingAPerson), &this->evacuatingAPerson);
+	Commands->Save_Data(saver, 9, sizeof(this->personBeingEvacuatedId), &this->personBeingEvacuatedId);
 
 	Commands->End_Chunk(saver);
 
@@ -101,7 +101,7 @@ void GK_Evac_Monitor::Load(ScriptLoader &loader)
 
 						break;
 					case 9:
-						Commands->Load_Data(loader, sizeof(this->evacuatingAPerson), &this->evacuatingAPerson);
+						Commands->Load_Data(loader, sizeof(this->personBeingEvacuatedId), &this->personBeingEvacuatedId);
 
 						break;
 				}
@@ -174,7 +174,7 @@ void GK_Evac_Monitor::Load(ScriptLoader &loader)
 
 void GK_Evac_Monitor::Created(GameObject *obj)
 {
-	this->evacuatingAPerson = false;
+	this->personBeingEvacuatedId = 0;
 	this->maxEvacPersonDeaths = Get_Int_Parameter("MaxEvacPersonDeaths");
 	this->currentEvacPersonDeaths = 0;
 	this->notifyObjId = Get_Int_Parameter("NotifyObjId");
@@ -205,6 +205,10 @@ void GK_Evac_Monitor::Custom(GameObject *obj, int type, int param, GameObject *s
 	}
 	else if (type == GK_CUSTOM_EVENT_EVAC_CANCEL_EVAC)
 	{
+#ifdef _DEBUG
+		Console_Output("Evac failed: CANCELED\n");
+#endif
+
 		GameObject *notifyObj = Commands->Find_Object(this->notifyObjId);
 		Commands->Send_Custom_Event(Owner(), notifyObj, GK_CUSTOM_EVENT_EVAC_FAILED, GK_EVAC_FAILED_REASON_CANCELED, 0.0f);
 
@@ -267,6 +271,13 @@ void GK_Evac_Monitor::UnregisterEvacPerson(GameObject *evacPerson)
 	int index = this->evacPersonIds.Find_Index(evacPersonId);
 	if (index != -1)
 	{
+		if (evacPersonId == this->personBeingEvacuatedId)
+		{
+			this->personBeingEvacuatedId = 0;
+
+			EvacuateNextPerson();
+		}
+
 		this->evacPersonIds.Delete_Range(index, 1);
 	}
 }
@@ -290,9 +301,21 @@ void GK_Evac_Monitor::EvacPersonKilled(GameObject *evacPerson)
 
 		if (this->currentEvacPersonDeaths >= this->maxEvacPersonDeaths)
 		{
+#ifdef _DEBUG
+			Console_Output("Evac failed: TOO MANY DEATHS\n");
+#endif
 			Commands->Send_Custom_Event(Owner(), notifyObj, GK_CUSTOM_EVENT_EVAC_FAILED, GK_EVAC_FAILED_REASON_TOO_MANY_EVAC_PERSON_DEATHS, 0.0f);
 
 			CancelEvac();
+		}
+		else
+		{
+			if (evacPersonId == this->personBeingEvacuatedId)
+			{
+				this->personBeingEvacuatedId = 0;
+
+				EvacuateNextPerson();
+			}
 		}
 	}
 }
@@ -397,6 +420,10 @@ void GK_Evac_Monitor::FailedToMoveToEvac(GameObject *evacPerson)
 	int index = this->evacPersonIds.Find_Index(evacPersonId);
 	if (index != -1)
 	{
+#ifdef _DEBUG
+		Console_Output("Evac failed: FAILED TO MOVE TO EVAC LOC\n");
+#endif
+
 		GameObject *notifyObj = Commands->Find_Object(this->notifyObjId);
 		Commands->Send_Custom_Event(Owner(), notifyObj, GK_CUSTOM_EVENT_EVAC_PERSON_FAILED_TO_MOVE_TO_EVAC_LOCATION, evacPersonId, 0.0f);
 		Commands->Send_Custom_Event(Owner(), notifyObj, GK_CUSTOM_EVENT_EVAC_FAILED, GK_EVAC_FAILED_REASON_PERSON_FAILED_TO_MOVE_TO_EVAC_LOCATION, 0.0f);
@@ -416,7 +443,7 @@ void GK_Evac_Monitor::EvacPersonReadyForEvac(GameObject *evacPerson)
 	int index = this->evacPersonIds.Find_Index(evacPersonId);
 	if (index != -1)
 	{
-		if (this->evacuatingAPerson)
+		if (this->personBeingEvacuatedId != 0)
 		{
 			this->waitingForEvacPersonIds.Add(evacPersonId);
 		}
@@ -438,7 +465,7 @@ void GK_Evac_Monitor::PersonEvacuated(GameObject *evacPerson)
 	int index = this->evacPersonIds.Find_Index(evacPersonId);
 	if (index != -1)
 	{
-		this->evacuatingAPerson = false;
+		this->personBeingEvacuatedId = 0;
 		this->evacuatedPersonsCount++;
 
 		GameObject *notifyObj = Commands->Find_Object(this->notifyObjId);
@@ -461,22 +488,7 @@ void GK_Evac_Monitor::PersonEvacuated(GameObject *evacPerson)
 		}
 		else
 		{
-			while (this->waitingForEvacPersonIds.Count() > 0)
-			{
-				int currentEvacPersonId = this->waitingForEvacPersonIds[0];
-				this->waitingForEvacPersonIds.Delete_Range(0, 1);
-
-				if (this->evacPersonIds.Find_Index(currentEvacPersonId) != -1)
-				{
-					GameObject *nextEvacPerson = Commands->Find_Object(currentEvacPersonId);
-					if (nextEvacPerson)
-					{
-						EvacuatePerson(nextEvacPerson);
-
-						break;
-					}
-				}
-			}
+			EvacuateNextPerson();
 		}
 	}
 }
@@ -488,6 +500,10 @@ void GK_Evac_Monitor::ChopperKilled()
 		return;
 	}
 
+#ifdef _DEBUG
+	Console_Output("Evac failed: CHOPPER KILLED\n");
+#endif
+
 	GameObject *notifyObj = Commands->Find_Object(this->notifyObjId);
 	Commands->Send_Custom_Event(Owner(), notifyObj, GK_CUSTOM_EVENT_EVAC_FAILED, GK_EVAC_FAILED_REASON_CHOPPER_KILLED, 0.0f);
 
@@ -496,7 +512,7 @@ void GK_Evac_Monitor::ChopperKilled()
 
 void GK_Evac_Monitor::EvacuatePerson(GameObject *evacPerson)
 {
-	this->evacuatingAPerson = true;
+	this->personBeingEvacuatedId = Commands->Get_ID(evacPerson);
 
 	Vector3 pos = Commands->Get_Position(Owner());
 	GameObject *troopBoneObj = Commands->Create_Object("Invisible_Object", pos);
@@ -505,12 +521,32 @@ void GK_Evac_Monitor::EvacuatePerson(GameObject *evacPerson)
 	Commands->Send_Custom_Event(Owner(), evacPerson, GK_CUSTOM_EVENT_EVAC_PERSON_BEING_EVACUATED, troopBoneObjId, 0.0f);
 
 	Commands->Set_Model(troopBoneObj, "XG_EV5_troopBN");
-	Commands->Attach_Script(troopBoneObj, "GK_Evac_Troop_Bone", "");
+	Commands->Attach_Script(troopBoneObj, "GK_Evac_Troop_Bone", StringClass::getFormattedString("%d", this->personBeingEvacuatedId));
 	Commands->Attach_To_Object_Bone(evacPerson, troopBoneObj, "Troop_L");
 
 	Commands->Set_Animation(troopBoneObj, GK_EVAC_TROOP_BONE_ANIM, false, NULL, 0.0f, -1.0f, false);
 
 	Commands->Set_Animation(evacPerson, "S_A_Human.XG_EV5_troop", false, NULL, 0.0f, -1.0f, false);
+}
+
+void GK_Evac_Monitor::EvacuateNextPerson()
+{
+	while (this->waitingForEvacPersonIds.Count() > 0)
+	{
+		int currentEvacPersonId = this->waitingForEvacPersonIds[0];
+		this->waitingForEvacPersonIds.Delete_Range(0, 1);
+
+		if (this->evacPersonIds.Find_Index(currentEvacPersonId) != -1)
+		{
+			GameObject *nextEvacPerson = Commands->Find_Object(currentEvacPersonId);
+			if (nextEvacPerson)
+			{
+				EvacuatePerson(nextEvacPerson);
+
+				return;
+			}
+		}
+	}
 }
 
 ScriptRegistrant<GK_Evac_Monitor> GK_Evac_MonitorRegistrant("GK_Evac_Monitor", "NotifyObjId:int, MaxEvacPersonDeaths:int, TransportPreset:string, CanChopperBeSeen:int, CanChopperBeDamaged:int");

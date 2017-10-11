@@ -36,7 +36,8 @@ enum
 	GK_CUSTOM_EVENT_EVAC_PERSON_EVACUATED,
 	GK_CUSTOM_EVENT_EVAC_PERSON_BEING_EVACUATED,
 	GK_CUSTOM_EVENT_EVAC_COMPLETE,
-	GK_CUSTOM_EVENT_EVAC_CHOPPER_KILLED
+	GK_CUSTOM_EVENT_EVAC_CHOPPER_KILLED,
+	GK_CUSTOM_EVENT_TROOP_BONE_FINISHED_ANIMATION
 };
 
 enum
@@ -76,10 +77,11 @@ class GK_Evac_Monitor : public ScriptImpClass
 		void PersonEvacuated(GameObject *evacPerson);
 		void ChopperKilled();
 		void EvacuatePerson(GameObject *evacPerson);
+		void EvacuateNextPerson();
 
 		SimpleDynVecClass<int> evacPersonIds;
 		SimpleDynVecClass<int> waitingForEvacPersonIds;
-		bool evacuatingAPerson;
+		int personBeingEvacuatedId;
 		int maxEvacPersonDeaths;
 		int currentEvacPersonDeaths;
 		int notifyObjId;

@@ -20,9 +20,17 @@
 
 #include "gmplugin.h"
 
+#ifdef _DEBUG
+	#define CHAT_TEST
+#endif
+
 class EvacPlugin : public Plugin
 {
 	public:
 		EvacPlugin();
 		~EvacPlugin();
+
+#ifdef CHAT_TEST
+		virtual bool OnChat(int PlayerID, TextMessageEnum Type, const wchar_t *Message, int recieverID);
+#endif
 };

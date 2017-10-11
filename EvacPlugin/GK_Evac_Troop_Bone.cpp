@@ -19,12 +19,26 @@
 #include "General.h"
 #include "GK_Evac_Troop_Bone.h"
 
+#include "GK_Evac_Monitor.h"
+
+#ifdef _DEBUG
+#include <engine_common.h>
+#endif
+
 void GK_Evac_Troop_Bone::Animation_Complete(GameObject *obj, const char *animation_name)
 {
 	if (!_stricmp(animation_name, GK_EVAC_TROOP_BONE_ANIM))
 	{
+#ifdef _DEBUG
+		Console_Output("Troop bone done with animation, destroying\n");
+#endif
+
+		int evacPersonId = Get_Int_Parameter("EvacPersonId");
+		GameObject *evacPersonObj = Commands->Find_Object(evacPersonId);
+		Commands->Send_Custom_Event(obj, evacPersonObj, GK_CUSTOM_EVENT_TROOP_BONE_FINISHED_ANIMATION, 0, 0.0f);
+
 		Commands->Destroy_Object(obj);
 	}
 }
 
-ScriptRegistrant<GK_Evac_Troop_Bone> GK_Evac_Troop_BoneRegistrant("GK_Evac_Troop_Bone", "");
+ScriptRegistrant<GK_Evac_Troop_Bone> GK_Evac_Troop_BoneRegistrant("GK_Evac_Troop_Bone", "EvacPersonId:int");
